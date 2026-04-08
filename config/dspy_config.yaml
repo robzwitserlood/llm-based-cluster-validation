@@ -1,0 +1,7 @@
+model:
+  provider: openai
+  name: ministral-3:3b
+  base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
+  api_key: EMPTY                        # SGLang does not require a real key
+  temperature: 0.0
+  max_tokens: 1000
