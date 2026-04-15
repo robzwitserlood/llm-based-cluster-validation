@@ -4,4 +4,3 @@ TO DO:
 - create the notebook
 - create the readme including the way to run via command line and via notebook
 - create the docker file
-- Add a remote repo for the project
