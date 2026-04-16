@@ -4,15 +4,17 @@ pipeline/optimize_gepa.py — optimize ClusterIntruderValidator with GEPA.
 GEPA performs reflective prompt optimization: it runs the program, analyses
 failures via a reflection LM, and iteratively proposes better instructions.
 
+The reflection LM is read from the 'teacher' block in config/dspy_config.yaml
+(currently claude-sonnet-4-6 via the Anthropic API). Requires ANTHROPIC_API_KEY.
+
 Run:
-    python pipeline/optimize_gepa.py --reflection-lm openai/gpt-4o-mini
+    python pipeline/optimize_gepa.py
 
 Output: outputs/program_gepa.json (and MLflow run in "cluster-validator-optimize")
 """
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 import dspy
@@ -22,6 +24,7 @@ from cluster_validator import (
     ClusterIntruderValidator,
     build_devset,
     configure_dspy,
+    configure_teacher_lm,
     gepa_metric,
     intruder_exact_match,
     split_for_gepa,
@@ -33,8 +36,6 @@ EXPERIMENT_NAME = "cluster-validator-optimize"
 
 
 def run_optimization(
-    reflection_lm: str = "openai/gpt-4o-mini",
-    reflection_api_key_env: str | None = None,
     auto: str = "light",
     config_path: str = "config/dspy_config.yaml",
     num_threads: int = 4,
@@ -43,28 +44,19 @@ def run_optimization(
 
     Logs to MLflow experiment "cluster-validator-optimize".
 
+    The reflection LM is read from the 'teacher' block in dspy_config.yaml.
+
     Args:
-        reflection_lm:          Model string for the reflection LM (needs a capable model).
-                                E.g. "openai/gpt-4o-mini" or "anthropic/claude-3-5-haiku-20241022".
-        reflection_api_key_env: Env var holding the API key for the reflection LM.
-        auto:                   GEPA budget preset: "light", "medium", or "heavy".
-        config_path:            Path to dspy_config.yaml for the task LM.
-        num_threads:            Parallel threads for evaluation inside GEPA.
+        auto:        GEPA budget preset: "light", "medium", or "heavy".
+        config_path: Path to dspy_config.yaml for both the task and reflection LMs.
+        num_threads: Parallel threads for evaluation inside GEPA.
     """
     configure_dspy(config_path, cache=True)
+    reflection_lm = configure_teacher_lm(config_path, cache=True)
     mlflow.set_experiment(EXPERIMENT_NAME)
     mlflow.dspy.autolog(log_traces=True, log_compiles=True)
 
-    reflection_api_key = os.getenv(reflection_api_key_env) if reflection_api_key_env else None
-    reflection_lm_obj = dspy.LM(
-        model=reflection_lm,
-        api_key=reflection_api_key,
-        temperature=1.0,
-        max_tokens=16_000,
-        cache=True,
-    )
-    print(f"[gepa] Reflection LM : {reflection_lm}")
-    print(f"[gepa] Budget        : auto={auto}")
+    print(f"[gepa] Budget : auto={auto}")
 
     all_examples = build_devset()
     if len(all_examples) < 6:
@@ -80,7 +72,7 @@ def run_optimization(
     with mlflow.start_run(run_name="gepa"):
         mlflow.log_params({
             "optimizer": "GEPA",
-            "reflection_lm": reflection_lm,
+            "reflection_lm": "claude-sonnet-4-6",
             "gepa_auto": auto,
             "num_train": len(trainset),
             "num_val": len(valset),
@@ -111,7 +103,7 @@ def run_optimization(
         optimizer = dspy.GEPA(
             metric=gepa_metric,
             auto=auto,
-            reflection_lm=reflection_lm_obj,
+            reflection_lm=reflection_lm,
             num_threads=num_threads,
         )
         print("\nRunning GEPA …")
@@ -144,7 +136,7 @@ def run_optimization(
         results_path = Path(__file__).parent.parent / "outputs" / "optimize_gepa_results.json"
         results_path.write_text(json.dumps({
             "optimizer": "GEPA",
-            "reflection_lm": reflection_lm,
+            "reflection_lm": "claude-sonnet-4-6",
             "gepa_auto": auto,
             "num_train": len(trainset),
             "num_val": len(valset),
@@ -161,8 +153,6 @@ def run_optimization(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--reflection-lm", default="openai/gpt-4o-mini")
-    p.add_argument("--reflection-api-key-env", default=None)
     p.add_argument("--auto", choices=["light", "medium", "heavy"], default="light")
     p.add_argument("--config-path", default="config/dspy_config.yaml")
     p.add_argument("--num-threads", type=int, default=4)
@@ -172,8 +162,6 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     run_optimization(
-        reflection_lm=args.reflection_lm,
-        reflection_api_key_env=args.reflection_api_key_env,
         auto=args.auto,
         config_path=args.config_path,
         num_threads=args.num_threads,
