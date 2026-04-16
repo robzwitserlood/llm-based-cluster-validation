@@ -15,20 +15,20 @@ class IntruderDetectionSignature(dspy.Signature):
     overgebleven woord als de indringer.
     """
 
-    keyword_1: str = dspy.InputField(desc="Eerste trefwoord")
-    keyword_2: str = dspy.InputField(desc="Tweede trefwoord")
-    keyword_3: str = dspy.InputField(desc="Derde trefwoord")
-    keyword_4: str = dspy.InputField(desc="Vierde trefwoord")
-    keyword_5: str = dspy.InputField(desc="Vijfde trefwoord")
-    keyword_6: str = dspy.InputField(desc="Zesde trefwoord")
+    trefwoord_1: str = dspy.InputField(desc="Eerste trefwoord")
+    trefwoord_2: str = dspy.InputField(desc="Tweede trefwoord")
+    trefwoord_3: str = dspy.InputField(desc="Derde trefwoord")
+    trefwoord_4: str = dspy.InputField(desc="Vierde trefwoord")
+    trefwoord_5: str = dspy.InputField(desc="Vijfde trefwoord")
+    trefwoord_6: str = dspy.InputField(desc="Zesde trefwoord")
 
-    intruder: str = dspy.OutputField(
+    indringer: str = dspy.OutputField(
         desc=(
             "Het ene trefwoord dat niet tot hetzelfde concept behoort als de overige "
             "vijf trefwoorden. Geef een exacte kopie van het trefwoordwoord."
         )
     )
-    reasoning: str = dspy.OutputField(
+    redenering: str = dspy.OutputField(
         desc=(
             "Een korte uitleg van het concept waartoe de vijf gerelateerde trefwoorden "
             "behoren en waarom de indringer daarbuiten valt."
@@ -39,12 +39,12 @@ class IntruderDetectionSignature(dspy.Signature):
 class ClusterIntruderValidator(dspy.Module):
     """DSPy module that detects an intruder keyword within a cluster of keywords.
 
-    Uses a Predict step with an explicit reasoning output field declared after
-    the intruder field. This ordering matters for small models: because JSON
-    adapters serialise fields in declaration order, the model outputs `intruder`
-    first (a single word) before expanding on the reasoning. Using
+    Uses a Predict step with an explicit redenering output field declared after
+    the indringer field. This ordering matters for small models: because JSON
+    adapters serialise fields in declaration order, the model outputs `indringer`
+    first (a single word) before expanding on the redenering. Using
     dspy.ChainOfThought would prepend its own `reasoning` field ahead of
-    `intruder`, causing small models to exhaust the token budget on reasoning
+    `indringer`, causing small models to exhaust the token budget on redenering
     before ever reaching the answer.
     """
 
@@ -54,20 +54,20 @@ class ClusterIntruderValidator(dspy.Module):
 
     def forward(
         self,
-        keyword_1: str,
-        keyword_2: str,
-        keyword_3: str,
-        keyword_4: str,
-        keyword_5: str,
-        keyword_6: str,
+        trefwoord_1: str,
+        trefwoord_2: str,
+        trefwoord_3: str,
+        trefwoord_4: str,
+        trefwoord_5: str,
+        trefwoord_6: str,
     ) -> dspy.Prediction:
         return self.predictor(
-            keyword_1=keyword_1,
-            keyword_2=keyword_2,
-            keyword_3=keyword_3,
-            keyword_4=keyword_4,
-            keyword_5=keyword_5,
-            keyword_6=keyword_6,
+            trefwoord_1=trefwoord_1,
+            trefwoord_2=trefwoord_2,
+            trefwoord_3=trefwoord_3,
+            trefwoord_4=trefwoord_4,
+            trefwoord_5=trefwoord_5,
+            trefwoord_6=trefwoord_6,
         )
 
 
@@ -90,11 +90,11 @@ def find_intruder(keywords: list[str]) -> str:
 
     validator = ClusterIntruderValidator()
     result = validator(
-        keyword_1=keywords[0],
-        keyword_2=keywords[1],
-        keyword_3=keywords[2],
-        keyword_4=keywords[3],
-        keyword_5=keywords[4],
-        keyword_6=keywords[5],
+        trefwoord_1=keywords[0],
+        trefwoord_2=keywords[1],
+        trefwoord_3=keywords[2],
+        trefwoord_4=keywords[3],
+        trefwoord_5=keywords[4],
+        trefwoord_6=keywords[5],
     )
-    return result.intruder.strip()
+    return result.indringer.strip()

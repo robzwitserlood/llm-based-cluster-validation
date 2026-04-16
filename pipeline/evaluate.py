@@ -67,13 +67,13 @@ def run_evaluation(config_path: str = "config/dspy_config.yaml", num_threads: in
             if n_shown >= 5:
                 break
             pred = program(**{k: getattr(ex, k) for k in
-                              ("keyword_1", "keyword_2", "keyword_3", "keyword_4", "keyword_5", "keyword_6")})
+                              ("trefwoord_1", "trefwoord_2", "trefwoord_3", "trefwoord_4", "trefwoord_5", "trefwoord_6")})
             if not intruder_exact_match(ex, pred):
-                keywords = [ex.keyword_1, ex.keyword_2, ex.keyword_3,
-                            ex.keyword_4, ex.keyword_5, ex.keyword_6]
+                keywords = [ex.trefwoord_1, ex.trefwoord_2, ex.trefwoord_3,
+                            ex.trefwoord_4, ex.trefwoord_5, ex.trefwoord_6]
                 print(f"  keywords : {keywords}")
-                print(f"  gold     : {ex.intruder}")
-                print(f"  pred     : {pred.intruder}")
+                print(f"  gold     : {ex.indringer}")
+                print(f"  pred     : {pred.indringer}")
                 print()
                 n_shown += 1
         if n_shown == 0:

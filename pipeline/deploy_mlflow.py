@@ -66,10 +66,10 @@ class FinetunedClusterValidator(dspy.Module):
                 f"Expected 6 comma-separated keywords, got {len(keywords)}: {content!r}"
             )
         result = self.program(
-            keyword_1=keywords[0], keyword_2=keywords[1], keyword_3=keywords[2],
-            keyword_4=keywords[3], keyword_5=keywords[4], keyword_6=keywords[5],
+            trefwoord_1=keywords[0], trefwoord_2=keywords[1], trefwoord_3=keywords[2],
+            trefwoord_4=keywords[3], trefwoord_5=keywords[4], trefwoord_6=keywords[5],
         )
-        return {"intruder": result.intruder.strip()}
+        return {"indringer": result.indringer.strip()}
 
 
 # ---------------------------------------------------------------------------

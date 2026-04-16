@@ -175,9 +175,9 @@ def build_raw_examples(
             insert_pos = rng.randint(0, 5)
             six = cluster_kws[:insert_pos] + [intruder_kw] + cluster_kws[insert_pos:]
             examples.append({
-                "keyword_1": six[0], "keyword_2": six[1], "keyword_3": six[2],
-                "keyword_4": six[3], "keyword_5": six[4], "keyword_6": six[5],
-                "intruder": intruder_kw,
+                "trefwoord_1": six[0], "trefwoord_2": six[1], "trefwoord_3": six[2],
+                "trefwoord_4": six[3], "trefwoord_5": six[4], "trefwoord_6": six[5],
+                "indringer": intruder_kw,
                 "source_topic": tid,
                 "intruder_topic": intruder_topic,
             })

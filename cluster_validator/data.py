@@ -23,7 +23,7 @@ EXAMPLES_FILE = Path(__file__).parent.parent / "data" / "raw_examples.json"
 
 SPLIT_SEED = 42  # shared constant — must be the same across all optimizer runs
 
-# Hand-crafted fallback examples — (k1, k2, k3, k4, k5, k6, intruder)
+# Hand-crafted fallback examples — (k1, k2, k3, k4, k5, k6, indringer)
 _FALLBACK_EXAMPLES: list[tuple[str, ...]] = [
     ("ocean",    "river",          "lake",           "mountain",  "stream",    "pond",        "mountain"),
     ("lion",     "tiger",          "cheetah",        "leopard",   "banana",    "jaguar",      "banana"),
@@ -52,7 +52,7 @@ _FALLBACK_EXAMPLES: list[tuple[str, ...]] = [
     ("atlantic", "pacific",        "indian",         "arctic",    "southern",  "bicycle",     "bicycle"),
 ]
 
-_INPUT_FIELDS = ("keyword_1", "keyword_2", "keyword_3", "keyword_4", "keyword_5", "keyword_6")
+_INPUT_FIELDS = ("trefwoord_1", "trefwoord_2", "trefwoord_3", "trefwoord_4", "trefwoord_5", "trefwoord_6")
 
 
 # ---------------------------------------------------------------------------
@@ -154,13 +154,13 @@ def build_devset(examples_file: Path | str = EXAMPLES_FILE) -> list[dspy.Example
             rows = json.load(f)
         devset = [
             dspy.Example(
-                keyword_1=r["keyword_1"],
-                keyword_2=r["keyword_2"],
-                keyword_3=r["keyword_3"],
-                keyword_4=r["keyword_4"],
-                keyword_5=r["keyword_5"],
-                keyword_6=r["keyword_6"],
-                intruder=r["intruder"],
+                trefwoord_1=r["trefwoord_1"],
+                trefwoord_2=r["trefwoord_2"],
+                trefwoord_3=r["trefwoord_3"],
+                trefwoord_4=r["trefwoord_4"],
+                trefwoord_5=r["trefwoord_5"],
+                trefwoord_6=r["trefwoord_6"],
+                indringer=r["indringer"],
             ).with_inputs(*_INPUT_FIELDS)
             for r in rows
         ]
@@ -171,9 +171,9 @@ def build_devset(examples_file: Path | str = EXAMPLES_FILE) -> list[dspy.Example
     print("Run `python -m pipeline.build_dataset` to generate real-world examples.")
     return [
         dspy.Example(
-            keyword_1=k1, keyword_2=k2, keyword_3=k3,
-            keyword_4=k4, keyword_5=k5, keyword_6=k6,
-            intruder=intruder,
+            trefwoord_1=k1, trefwoord_2=k2, trefwoord_3=k3,
+            trefwoord_4=k4, trefwoord_5=k5, trefwoord_6=k6,
+            indringer=indringer,
         ).with_inputs(*_INPUT_FIELDS)
-        for k1, k2, k3, k4, k5, k6, intruder in _FALLBACK_EXAMPLES
+        for k1, k2, k3, k4, k5, k6, indringer in _FALLBACK_EXAMPLES
     ]

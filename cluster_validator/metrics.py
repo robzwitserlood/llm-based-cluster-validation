@@ -12,8 +12,8 @@ def intruder_exact_match(example: dspy.Example, pred: dspy.Prediction, trace=Non
     handle cases where the model returns e.g. "mountain." or
     "The intruder is mountain".
     """
-    gold = example.intruder.strip().lower()
-    predicted = pred.intruder.strip().lower()
+    gold = example.indringer.strip().lower()
+    predicted = pred.indringer.strip().lower()
     return gold == predicted or gold in predicted.split()
 
 
