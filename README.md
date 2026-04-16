@@ -63,7 +63,7 @@ Start it before running any pipeline script:
 
 ```bash
 python -m sglang.launch_server \
-    --model-path mistralai/Ministral-4B-Instruct-v0.3 \
+    --model-path ministral/Ministral-4b-instruct \
     --port 30000
 ```
 
