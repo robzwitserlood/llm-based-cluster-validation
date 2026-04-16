@@ -39,7 +39,7 @@ The teacher generates high-quality (prompt, completion) traces; the student's we
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/) — for dependency management
-- [SGLang](https://github.com/sgl-project/sglang) — serving `ministral-3:3b` locally on GPU
+- [SGLang](https://github.com/sgl-project/sglang) — serving `Ministral-4b-instruct` locally on GPU
 - An Anthropic API key (only needed for `optimize_finetune.py`)
 
 ### Install
@@ -58,12 +58,12 @@ cp .env.example .env
 
 ### Start the SGLang inference server
 
-The pipeline scripts expect `ministral-3:3b` to be available at `http://localhost:30000/v1`.
+The pipeline scripts expect `Ministral-4b-instruct` to be available at `http://localhost:30000/v1`.
 Start it before running any pipeline script:
 
 ```bash
 python -m sglang.launch_server \
-    --model-path ministral/Ministral-3b-instruct \
+    --model-path mistralai/Ministral-4B-Instruct-v0.3 \
     --port 30000
 ```
 
