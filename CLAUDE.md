@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Purpose
 
-This repository is an internal onboarding / knowledge-sharing resource that walks teammates through building, evaluating, optimizing, and deploying a DSPy program. The concrete task — identifying an intruder keyword among a set of cluster keywords — is a vehicle for explaining DSPy concepts. The **end goal is fine-tuning** `ministral-3:3b`; prompt-level optimizers (BootstrapFewShot, GEPA) are intermediate stepping stones used to establish a baseline and generate training signal before committing to weight updates.
+This repository is an internal onboarding / knowledge-sharing resource that walks teammates through building, evaluating, optimizing, and deploying a DSPy program. The concrete task — identifying an intruder keyword among a set of cluster keywords — is a vehicle for explaining DSPy concepts. The **end goal is fine-tuning** `Ministral-4b-instruct`; prompt-level optimizers (BootstrapFewShot, GEPA) are intermediate stepping stones used to establish a baseline and generate training signal before committing to weight updates.
 
 ## Key context
 
 - **DSPy** is the primary framework — all LLM interaction, evaluation, and optimization goes through DSPy abstractions (`dspy.Module`, `dspy.Signature`, `dspy.Evaluate`, optimizers).
-- **Target model**: `ministral-3:3b` served locally via **SGLang** (OpenAI-compatible API at `http://localhost:30000/v1`). The config uses `provider: openai` with `base_url` pointing to SGLang.
+- **Target model**: `Ministral-4b-instruct` served locally via **SGLang** (OpenAI-compatible API at `http://localhost:30000/v1`). The config uses `provider: openai` with `base_url` pointing to SGLang.
 - **Optimization order**: BootstrapFewShot → GEPA → BootstrapFinetune. The first two establish a performance baseline and produce labeled traces; fine-tuning (`pipeline/optimize_finetune.py`) is the primary objective.
 - **Dual-mode code**: every script must be runnable from the command line (`python pipeline/foo.py`) *and* importable/callable from a Jupyter notebook without modification. Expose clean functions that both the CLI entry-point and the notebook can call — do not put logic inside `if __name__ == "__main__"` guards.
 - **Notebook scope**: the demo notebook covers evaluation and optimization only (not dataset generation or deployment). It should explain what DSPy is doing under the hood at each step.

@@ -9,7 +9,7 @@ BootstrapFinetune works in two phases:
 
 Teacher and student models are both configured in config/dspy_config.yaml:
   - teacher: claude-sonnet-4-6 via Anthropic API  (stronger model, generates traces)
-  - student: ministral-3:3b via SGLang            (local model, gets its weights updated)
+  - student: Ministral-4b-instruct via SGLang      (local model, gets its weights updated)
 
 Requires ANTHROPIC_API_KEY to be set in the environment (see .env.example).
 
@@ -63,7 +63,7 @@ def run_optimization(
 
     Logs to MLflow experiment "cluster-validator-finetune".
 
-    The teacher (Claude Sonnet) generates labeled traces; the student (ministral-3:3b)
+    The teacher (Claude Sonnet) generates labeled traces; the student (Ministral-4b-instruct)
     is fine-tuned on those traces via SGLang + HuggingFace TRL.
 
     Args:
@@ -105,7 +105,7 @@ def run_optimization(
         "use_peft": use_peft,
     }
 
-    # Student program uses ministral-3:3b via SGLang LocalProvider (weight update target)
+    # Student program uses Ministral-4b-instruct via SGLang LocalProvider (weight update target)
     student_lm = dspy.LM(
         model=f"openai/local:{student_model_name}",
         provider=LocalProvider(),

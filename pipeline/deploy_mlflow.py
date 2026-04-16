@@ -93,7 +93,7 @@ def log_to_mlflow(output_dir: str = "./finetuned_model") -> str:
         program = FinetunedClusterValidator(student_lm=student_lm)
 
         mlflow.set_experiment(EXPERIMENT_NAME)
-        with mlflow.start_run(run_name="ministral-3b-finetuned") as run:
+        with mlflow.start_run(run_name="ministral-4b-finetuned") as run:
             if FINETUNE_RESULTS_PATH.exists():
                 results = json.loads(FINETUNE_RESULTS_PATH.read_text())
                 mlflow.log_metrics({
