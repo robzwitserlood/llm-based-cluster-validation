@@ -4,8 +4,8 @@ student:
   name: Ministral-3b-instruct
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
-  temperature: 0.3
-  max_tokens: 512
+  temperature: 0.35
+  max_tokens: 1024
   repetition_penalty: 1.1
 
 # Teacher model — Claude Sonnet via Anthropic API (generates training traces)

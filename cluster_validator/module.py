@@ -9,10 +9,10 @@ class IntruderDetectionSignature(dspy.Signature):
     """Identify the one keyword that does not belong with the other five.
 
     You are given exactly six keywords. Five of them share a common semantic
-    theme; one is an intruder from a different domain. Work only with the six
+    concept; one is an intruder that is conceptually different. Work only with the six
     provided words — do not introduce synonyms or related words that are not
-    in the input. In two or three short sentences, state which theme the five
-    words share and why the remaining word breaks that theme. Then output that
+    in the input. In two or three short sentences, state which concept the five
+    words share and why the remaining word breaks that concept. Then output that
     word as the intruder.
     """
 
@@ -26,14 +26,14 @@ class IntruderDetectionSignature(dspy.Signature):
     intruder: str = dspy.OutputField(
         desc=(
             "The single word from the six inputs that does not belong to the same "
-            "semantic theme as the other five. Copy the word exactly as given — "
+            "semantic concept as the other five. Copy the word exactly as given — "
             "no punctuation, no explanation."
         )
     )
     reasoning: str = dspy.OutputField(
         desc=(
-            "Two or three sentences explaining which theme the five words share "
-            "and why the intruder breaks that theme. Refer only to the six given "
+            "Two or three sentences explaining which concept the five words share "
+            "and why the intruder breaks that concept. Refer only to the six given "
             "words — do not introduce synonyms or outside vocabulary."
         )
     )
