@@ -1,7 +1,16 @@
-model:
+# Student model — ministral-3:3b served locally via SGLang (fine-tuned target)
+student:
   provider: openai
   name: ministral-3:3b
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
   temperature: 0.0
   max_tokens: 1000
+
+# Teacher model — Claude Sonnet via Anthropic API (generates training traces)
+teacher:
+  provider: anthropic
+  name: claude-sonnet-4-6
+  api_key_env: ANTHROPIC_API_KEY        # Set this in .env or your environment
+  temperature: 0.0
+  max_tokens: 4000

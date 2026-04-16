@@ -2,18 +2,20 @@
 pipeline/optimize_finetune.py — fine-tune ClusterIntruderValidator with BootstrapFinetune.
 
 BootstrapFinetune works in two phases:
-  1. Bootstrap: run a *teacher* program on the trainset to collect successful
-     (prompt, completion) traces.
+  1. Bootstrap: run the *teacher* program (Claude Sonnet) on the trainset to collect
+     successful (prompt, completion) traces.
   2. Finetune: use those traces to fine-tune the *student* model's weights via
      the HuggingFace TRL/PEFT stack.
 
-The student LM is a local HuggingFace model served by SGLang; the teacher is
-the model from config/dspy_config.yaml (ministral-3:3b via SGLang).
+Teacher and student models are both configured in config/dspy_config.yaml:
+  - teacher: claude-sonnet-4-6 via Anthropic API  (stronger model, generates traces)
+  - student: ministral-3:3b via SGLang            (local model, gets its weights updated)
+
+Requires ANTHROPIC_API_KEY to be set in the environment (see .env.example).
 
 Run:
     python pipeline/optimize_finetune.py
     python pipeline/optimize_finetune.py \\
-        --student-model meta-llama/Llama-3.2-1B-Instruct \\
         --output-dir ./finetuned_model
 
 Output:
@@ -35,7 +37,9 @@ from cluster_validator import (
     ClusterIntruderValidator,
     build_devset,
     configure_dspy,
+    configure_teacher_lm,
     intruder_exact_match,
+    load_config,
     split_for_finetune,
     split_test,
 )
@@ -45,7 +49,6 @@ EXPERIMENT_NAME = "cluster-validator-finetune"
 
 
 def run_optimization(
-    student_model: str = "meta-llama/Llama-3.2-1B-Instruct",
     output_dir: str = "./finetuned_model",
     config_path: str = "config/dspy_config.yaml",
     epochs: int = 1,
@@ -60,10 +63,12 @@ def run_optimization(
 
     Logs to MLflow experiment "cluster-validator-finetune".
 
+    The teacher (Claude Sonnet) generates labeled traces; the student (ministral-3:3b)
+    is fine-tuned on those traces via SGLang + HuggingFace TRL.
+
     Args:
-        student_model: HuggingFace model ID to fine-tune (the student).
         output_dir:    Directory where fine-tuned weights are saved.
-        config_path:   Path to dspy_config.yaml for the teacher LM.
+        config_path:   Path to dspy_config.yaml (defines teacher and student).
         epochs:        Fine-tuning epochs.
         lr:            Learning rate.
         batch_size:    Per-device train batch size.
@@ -74,11 +79,21 @@ def run_optimization(
     """
     dspy.settings.experimental = True
 
+    # Read student model name from config before configuring the global LM
+    cfg = load_config(config_path)
+    student_cfg = cfg.get("student") or cfg["model"]
+    student_model_name = student_cfg["name"]
+
+    # Global LM → student (ministral via SGLang), teacher LM returned separately
     configure_dspy(config_path, cache=True)
+    teacher_lm = configure_teacher_lm(config_path, cache=True)
+
     mlflow.set_experiment(EXPERIMENT_NAME)
     mlflow.dspy.autolog(log_traces=True, log_compiles=True)
 
+    # Teacher program uses Claude Sonnet to generate high-quality training traces
     teacher_program = ClusterIntruderValidator()
+    teacher_program.predictor.set_lm(teacher_lm)
 
     train_kwargs = {
         "num_train_epochs": epochs,
@@ -89,8 +104,10 @@ def run_optimization(
         "bf16": bf16,
         "use_peft": use_peft,
     }
+
+    # Student program uses ministral-3:3b via SGLang LocalProvider (weight update target)
     student_lm = dspy.LM(
-        model=f"openai/local:{student_model}",
+        model=f"openai/local:{student_model_name}",
         provider=LocalProvider(),
         max_tokens=1000,
         temperature=0.0,
@@ -99,8 +116,8 @@ def run_optimization(
     student_program = ClusterIntruderValidator()
     student_program.predictor.set_lm(student_lm)
 
-    print(f"[finetune] Teacher LM : see {config_path}")
-    print(f"[finetune] Student LM : {student_model}")
+    print(f"[finetune] Teacher LM : claude-sonnet-4-6 (Anthropic API)")
+    print(f"[finetune] Student LM : {student_model_name} (SGLang LocalProvider)")
     print(f"[finetune] Output dir : {output_dir}")
 
     all_examples = build_devset()
@@ -114,10 +131,12 @@ def run_optimization(
     trainset, devset = split_for_finetune(trainable)
     print(f"Split: {len(trainset)} train / {len(devset)} dev / {len(testset)} test")
 
+    student_post_test = 0.0
     with mlflow.start_run(run_name="bootstrap-finetune"):
         mlflow.log_params({
             "optimizer": "BootstrapFinetune",
-            "student_model": student_model,
+            "teacher_model": "claude-sonnet-4-6",
+            "student_model": student_model_name,
             "output_dir": output_dir,
             "epochs": epochs,
             "lr": lr,
@@ -191,8 +210,8 @@ def run_optimization(
 
             results_path = Path(__file__).parent.parent / "outputs" / "optimize_finetune_results.json"
             results_path.write_text(json.dumps({
-                "teacher_lm": f"see {config_path}",
-                "student_model": student_model,
+                "teacher_model": "claude-sonnet-4-6",
+                "student_model": student_model_name,
                 "output_dir": output_dir,
                 "num_train": len(trainset),
                 "num_dev": len(devset),
@@ -215,23 +234,21 @@ def run_optimization(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--student-model", default="meta-llama/Llama-3.2-1B-Instruct")
-    p.add_argument("--output-dir",    default="./finetuned_model")
-    p.add_argument("--config-path",   default="config/dspy_config.yaml")
-    p.add_argument("--epochs",        type=int,   default=1)
-    p.add_argument("--lr",            type=float, default=5e-5)
-    p.add_argument("--batch-size",    type=int,   default=4)
-    p.add_argument("--grad-accum",    type=int,   default=4)
-    p.add_argument("--bf16",          action="store_true")
-    p.add_argument("--use-peft",      action="store_true")
-    p.add_argument("--num-threads",   type=int,   default=4)
+    p.add_argument("--output-dir",  default="./finetuned_model")
+    p.add_argument("--config-path", default="config/dspy_config.yaml")
+    p.add_argument("--epochs",      type=int,   default=1)
+    p.add_argument("--lr",          type=float, default=5e-5)
+    p.add_argument("--batch-size",  type=int,   default=4)
+    p.add_argument("--grad-accum",  type=int,   default=4)
+    p.add_argument("--bf16",        action="store_true")
+    p.add_argument("--use-peft",    action="store_true")
+    p.add_argument("--num-threads", type=int,   default=4)
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     run_optimization(
-        student_model=args.student_model,
         output_dir=args.output_dir,
         config_path=args.config_path,
         epochs=args.epochs,

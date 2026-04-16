@@ -22,6 +22,7 @@ import json
 import random
 from pathlib import Path
 
+import diskcache
 from datasets import load_dataset
 from bertopic import BERTopic
 from umap import UMAP
@@ -32,6 +33,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 REPO_DIR = Path(__file__).parent.parent
 DATA_DIR = REPO_DIR / "data"
 OUTPUTS_DIR = REPO_DIR / "outputs"
+CACHE_DIR = REPO_DIR / ".cache" / "dutch_docs"
 
 DUTCH_STOP_WORDS = [
     "de", "het", "een", "en", "van", "in", "is", "dat", "op", "te",
@@ -75,21 +77,36 @@ def build_topic_model() -> BERTopic:
 # ---------------------------------------------------------------------------
 
 def load_dutch_docs(max_docs: int = 5_000, min_text_len: int = 30) -> list[str]:
-    print(f"Streaming stanford-oval/ccnews (2024, nl) — collecting up to {max_docs} docs …")
-    ds = load_dataset("stanford-oval/ccnews", "2024", split="train", streaming=True)
-    docs: list[str] = []
-    scanned = 0
-    for row in ds:
-        scanned += 1
-        if row.get("language") == "nl":
-            text = row.get("plain_text") or ""
-            if len(text) > min_text_len:
-                docs.append(text)
-                if len(docs) >= max_docs:
-                    break
-        if scanned % 50_000 == 0:
-            print(f"  … scanned {scanned:,} rows, collected {len(docs):,} Dutch docs")
-    print(f"  Done — {len(docs)} Dutch documents from {scanned:,} rows scanned.")
+    """Stream Dutch news articles from HuggingFace, with disk-based caching.
+
+    Results are cached in .cache/dutch_docs/ keyed on (max_docs, min_text_len).
+    Subsequent calls with the same arguments return instantly from cache.
+    """
+    cache_key = f"dutch_docs_{max_docs}_{min_text_len}"
+    with diskcache.Cache(str(CACHE_DIR)) as cache:
+        if cache_key in cache:
+            docs = cache[cache_key]
+            print(f"[cache] Loaded {len(docs)} Dutch docs from disk cache (key={cache_key}).")
+            return docs
+
+        print(f"Streaming stanford-oval/ccnews (2024, nl) — collecting up to {max_docs} docs …")
+        ds = load_dataset("stanford-oval/ccnews", "2024", split="train", streaming=True)
+        docs: list[str] = []
+        scanned = 0
+        for row in ds:
+            scanned += 1
+            if row.get("language") == "nl":
+                text = row.get("plain_text") or ""
+                if len(text) > min_text_len:
+                    docs.append(text)
+                    if len(docs) >= max_docs:
+                        break
+            if scanned % 50_000 == 0:
+                print(f"  … scanned {scanned:,} rows, collected {len(docs):,} Dutch docs")
+        print(f"  Done — {len(docs)} Dutch documents from {scanned:,} rows scanned.")
+
+        cache[cache_key] = docs
+        print(f"[cache] Saved to disk cache (key={cache_key}).")
     return docs
 
 

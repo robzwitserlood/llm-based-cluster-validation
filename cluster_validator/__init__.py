@@ -1,6 +1,6 @@
 """cluster_validator — DSPy intruder-detection module and utilities."""
 
-from .config import configure_dspy, load_config
+from .config import configure_dspy, configure_teacher_lm, load_config
 from .data import build_devset, split_test, split_for_bootstrap, split_for_gepa, split_for_finetune
 from .metrics import gepa_metric, intruder_exact_match
 from .module import ClusterIntruderValidator, IntruderDetectionSignature, find_intruder
@@ -10,6 +10,7 @@ __all__ = [
     "IntruderDetectionSignature",
     "find_intruder",
     "configure_dspy",
+    "configure_teacher_lm",
     "load_config",
     "build_devset",
     "split_test",

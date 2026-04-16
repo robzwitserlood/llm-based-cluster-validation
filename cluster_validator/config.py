@@ -19,16 +19,8 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> dict:
         return yaml.safe_load(f)
 
 
-def configure_dspy(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> None:
-    """Configure the global DSPy LM from dspy_config.yaml.
-
-    Args:
-        config_path: Path to the YAML configuration file.
-        cache:       Enable DSPy response caching (useful for eval/optimize runs).
-    """
-    config = load_config(config_path)
-    model_cfg = config["model"]
-
+def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
+    """Construct a dspy.LM from a config block dict."""
     provider = model_cfg.get("provider", "openai")
     model_name = model_cfg["name"]
     temperature = model_cfg.get("temperature", 0.0)
@@ -51,6 +43,50 @@ def configure_dspy(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = 
     if base_url:
         lm_kwargs["base_url"] = base_url
 
-    lm = dspy.LM(**lm_kwargs)
+    return dspy.LM(**lm_kwargs)
+
+
+def configure_dspy(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> None:
+    """Configure the global DSPy LM from the student block in dspy_config.yaml.
+
+    Falls back to the legacy ``model`` key for backwards compatibility.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+        cache:       Enable DSPy response caching (useful for eval/optimize runs).
+    """
+    config = load_config(config_path)
+    # Support both new "student" key and legacy "model" key
+    model_cfg = config.get("student") or config["model"]
+
+    lm = _build_lm(model_cfg, cache=cache)
     dspy.configure(lm=lm)
+
+    full_model_name = f"{model_cfg.get('provider', 'openai')}/{model_cfg['name']}"
     print(f"[dspy] Configured LM: {full_model_name} (cache={cache})")
+
+
+def configure_teacher_lm(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> dspy.LM:
+    """Return a dspy.LM for the teacher model defined in dspy_config.yaml.
+
+    Does NOT set it as the global DSPy LM — the caller decides where to attach it.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+        cache:       Enable DSPy response caching.
+
+    Returns:
+        A configured dspy.LM instance for the teacher.
+    """
+    config = load_config(config_path)
+    if "teacher" not in config:
+        raise KeyError(
+            "No 'teacher' block found in dspy_config.yaml. "
+            "Add a 'teacher:' section with provider, name, and api_key_env."
+        )
+    teacher_cfg = config["teacher"]
+    lm = _build_lm(teacher_cfg, cache=cache)
+
+    full_model_name = f"{teacher_cfg.get('provider', 'anthropic')}/{teacher_cfg['name']}"
+    print(f"[dspy] Teacher LM    : {full_model_name} (cache={cache})")
+    return lm
