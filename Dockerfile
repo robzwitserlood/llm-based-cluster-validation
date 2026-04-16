@@ -2,13 +2,18 @@ FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python 3.12 via deadsnakes PPA and system tools
+# Install Python 3.12 via deadsnakes PPA and system tools.
+# gcc-12/g++-12 are pinned as the nvcc host compiler via CUDAHOSTCXX below:
+# CUDA 12.x only supports GCC ≤ 12, and the system default may be newer.
 RUN apt-get update \
-    && apt-get install -y software-properties-common curl git build-essential \
+    && apt-get install -y software-properties-common curl git build-essential gcc-12 g++-12 \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y python3.12 python3.12-dev python3.12-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# Tell nvcc to use GCC 12 as the host compiler for FlashInfer JIT compilation.
+ENV CUDAHOSTCXX=/usr/bin/g++-12
 
 # Make python3.12 the default
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \

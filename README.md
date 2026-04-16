@@ -63,9 +63,16 @@ Start it before running any pipeline script:
 
 ```bash
 python -m sglang.launch_server \
-    --model-path mistralai/Ministral-3B-Instruct-2410 \
+    --model-path ministral/Ministral-3b-instruct \
     --port 30000
 ```
+
+> **Note — GCC version:** SGLang JIT-compiles FlashInfer CUDA kernels at first launch. CUDA requires GCC ≤ 12 as the host compiler. If your system GCC is newer (check with `gcc --version`), compilation will fail with an "unsupported GNU version" error. Fix it by installing GCC 12 and registering it as the system default via `update-alternatives` (the `CUDAHOSTCXX` env var is not sufficient — FlashInfer's ninja build does not pass it through to `nvcc`):
+> ```bash
+> sudo apt install gcc-12 g++-12
+> sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 12
+> sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
+> ```
 
 ---
 
