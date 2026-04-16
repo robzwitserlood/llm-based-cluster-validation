@@ -20,12 +20,6 @@ class IntruderDetectionSignature(dspy.Signature):
     keyword_5: str = dspy.InputField(desc="Fifth keyword from the cluster set")
     keyword_6: str = dspy.InputField(desc="Sixth keyword from the cluster set")
 
-    reasoning: str = dspy.OutputField(
-        desc=(
-            "Step-by-step explanation of the semantic relationships between the six keywords "
-            "and why one of them does not belong to the same cluster as the other five."
-        )
-    )
     intruder: str = dspy.OutputField(
         desc=(
             "The single keyword that does not belong to the same semantic cluster "

@@ -5,7 +5,7 @@ student:
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
   temperature: 0.0
-  max_tokens: 1000
+  max_tokens: 2000
 
 # Teacher model — Claude Sonnet via Anthropic API (generates training traces)
 teacher:
