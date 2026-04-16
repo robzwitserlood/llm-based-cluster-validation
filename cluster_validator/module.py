@@ -6,11 +6,14 @@ import dspy
 
 
 class IntruderDetectionSignature(dspy.Signature):
-    """Identify the intruder keyword in a set of cluster keywords.
+    """Identify the one keyword that does not belong with the other five.
 
-    Given six keywords where five belong to a coherent text cluster and one
-    is an intruder that does not fit, return step-by-step reasoning followed
-    by the single word that is the intruder.
+    You are given exactly six keywords. Five of them share a common semantic
+    theme; one is an intruder from a different domain. Work only with the six
+    provided words — do not introduce synonyms or related words that are not
+    in the input. In two or three short sentences, state which theme the five
+    words share and why the remaining word breaks that theme. Then output that
+    word as the intruder.
     """
 
     keyword_1: str = dspy.InputField(desc="First keyword from the cluster set")
@@ -22,8 +25,16 @@ class IntruderDetectionSignature(dspy.Signature):
 
     intruder: str = dspy.OutputField(
         desc=(
-            "The single keyword that does not belong to the same semantic cluster "
-            "as the other five. Return only the word itself, nothing else."
+            "The single word from the six inputs that does not belong to the same "
+            "semantic theme as the other five. Copy the word exactly as given — "
+            "no punctuation, no explanation."
+        )
+    )
+    reasoning: str = dspy.OutputField(
+        desc=(
+            "Two or three sentences explaining which theme the five words share "
+            "and why the intruder breaks that theme. Refer only to the six given "
+            "words — do not introduce synonyms or outside vocabulary."
         )
     )
 
@@ -31,13 +42,18 @@ class IntruderDetectionSignature(dspy.Signature):
 class ClusterIntruderValidator(dspy.Module):
     """DSPy module that detects an intruder keyword within a cluster of keywords.
 
-    Uses Chain-of-Thought reasoning to analyse the semantic relationships
-    between six keywords and identify the one that does not belong.
+    Uses a Predict step with an explicit reasoning output field declared after
+    the intruder field. This ordering matters for small models: because JSON
+    adapters serialise fields in declaration order, the model outputs `intruder`
+    first (a single word) before expanding on the reasoning. Using
+    dspy.ChainOfThought would prepend its own `reasoning` field ahead of
+    `intruder`, causing small models to exhaust the token budget on reasoning
+    before ever reaching the answer.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        self.predictor = dspy.ChainOfThought(IntruderDetectionSignature)
+        self.predictor = dspy.Predict(IntruderDetectionSignature)
 
     def forward(
         self,

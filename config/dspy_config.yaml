@@ -1,11 +1,12 @@
 # Student model — ministral-3:3b served locally via SGLang (fine-tuned target)
 student:
-  provider: openai
+  provider: lm_studio          # lm_studio = OpenAI-compatible; tells litellm that json_schema is supported
   name: Ministral-3b-instruct
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
-  temperature: 0.0
-  max_tokens: 2000
+  temperature: 0.3
+  max_tokens: 512
+  repetition_penalty: 1.1
 
 # Teacher model — Claude Sonnet via Anthropic API (generates training traces)
 teacher:

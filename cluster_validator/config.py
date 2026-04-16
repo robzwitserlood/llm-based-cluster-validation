@@ -43,6 +43,13 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     if base_url:
         lm_kwargs["base_url"] = base_url
 
+    # Forward any extra sampling parameters (e.g. repetition_penalty)
+    _KNOWN_KEYS = {"provider", "name", "temperature", "max_tokens", "base_url",
+                   "api_key", "api_key_env"}
+    for key, val in model_cfg.items():
+        if key not in _KNOWN_KEYS:
+            lm_kwargs[key] = val
+
     return dspy.LM(**lm_kwargs)
 
 
