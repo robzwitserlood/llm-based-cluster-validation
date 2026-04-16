@@ -1,7 +1,7 @@
 # Student model — ministral-3:3b served locally via SGLang (fine-tuned target)
 student:
   provider: openai
-  name: ministral/Ministral-3b-instruct
+  name: Ministral-3b-instruct
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
   temperature: 0.0
