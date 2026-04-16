@@ -6,35 +6,32 @@ import dspy
 
 
 class IntruderDetectionSignature(dspy.Signature):
-    """Identify the one keyword that does not belong with the other five.
-
-    You are given exactly six keywords. Five of them share a common semantic
-    concept; one is an intruder that is conceptually different. Work only with the six
-    provided words — do not introduce synonyms or related words that are not
-    in the input. In two or three short sentences, state which concept the five
-    words share and why the remaining word breaks that concept. Then output that
-    word as the intruder.
+    """Identificeer het trefwoord dat niet bij de andere vijf hoort.
+    
+    Je krijgt exact zes trefwoorden. Vijf daarvan delen een gemeenschappelijk 
+    semantisch concept; één is een indringer die conceptueel anders is. In twee 
+    of drie korte zinnen, geef aan welk concept de vijf woorden delen en waarom 
+    het overgebleven woord niet binnen dit concept past. Geef vervolgens het 
+    overgebleven woord als de indringer.
     """
 
-    keyword_1: str = dspy.InputField(desc="First keyword from the cluster set")
-    keyword_2: str = dspy.InputField(desc="Second keyword from the cluster set")
-    keyword_3: str = dspy.InputField(desc="Third keyword from the cluster set")
-    keyword_4: str = dspy.InputField(desc="Fourth keyword from the cluster set")
-    keyword_5: str = dspy.InputField(desc="Fifth keyword from the cluster set")
-    keyword_6: str = dspy.InputField(desc="Sixth keyword from the cluster set")
+    keyword_1: str = dspy.InputField(desc="Eerste trefwoord")
+    keyword_2: str = dspy.InputField(desc="Tweede trefwoord")
+    keyword_3: str = dspy.InputField(desc="Derde trefwoord")
+    keyword_4: str = dspy.InputField(desc="Vierde trefwoord")
+    keyword_5: str = dspy.InputField(desc="Vijfde trefwoord")
+    keyword_6: str = dspy.InputField(desc="Zesde trefwoord")
 
     intruder: str = dspy.OutputField(
         desc=(
-            "The single word from the six inputs that does not belong to the same "
-            "semantic concept as the other five. Copy the word exactly as given — "
-            "no punctuation, no explanation."
+            "Het ene trefwoord dat niet tot hetzelfde concept behoort als de overige "
+            "vijf trefwoorden. Geef een exacte kopie van het trefwoordwoord."
         )
     )
     reasoning: str = dspy.OutputField(
         desc=(
-            "Two or three sentences explaining which concept the five words share "
-            "and why the intruder breaks that concept. Refer only to the six given "
-            "words — do not introduce synonyms or outside vocabulary."
+            "Een korte uitleg van het concept waartoe de vijf gerelateerde trefwoorden "
+            "behoren en waarom de indringer daarbuiten valt."
         )
     )
 

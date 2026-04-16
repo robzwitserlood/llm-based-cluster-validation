@@ -18,3 +18,7 @@ outputs/
 
 # Disk cache (build_dataset.py Dutch docs cache)
 .cache/
+
+# MLFlow
+mlflow.db
+mlruns/
