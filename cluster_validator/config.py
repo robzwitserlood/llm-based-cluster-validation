@@ -60,7 +60,7 @@ def configure_dspy(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = 
     model_cfg = config.get("student") or config["model"]
 
     lm = _build_lm(model_cfg, cache=cache)
-    dspy.configure(lm=lm)
+    dspy.configure(lm=lm, adapter=dspy.ChatAdapter())
 
     full_model_name = f"{model_cfg.get('provider', 'openai')}/{model_cfg['name']}"
     print(f"[dspy] Configured LM: {full_model_name} (cache={cache})")
