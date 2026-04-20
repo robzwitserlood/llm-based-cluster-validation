@@ -20,7 +20,7 @@ def intruder_exact_match(example: dspy.Example, pred: dspy.Prediction, trace=Non
     return gold == predicted or gold in predicted.split()
 
 
-def gepa_metric(gold, pred, trace, pred_name=None, pred_trace=None) -> bool:
+def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None) -> bool:
     """5-argument metric wrapper required by the GEPA optimizer."""
     try:
         return intruder_exact_match(gold, pred, trace)
