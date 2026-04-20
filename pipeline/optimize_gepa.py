@@ -104,7 +104,7 @@ def run_optimization(
 
         optimizer = dspy.GEPA(
             metric=gepa_metric,
-            auto=auto,
+            auto=auto if max_iterations is None else None,
             max_full_evals=max_iterations,
             reflection_lm=reflection_lm,
             num_threads=num_threads,
