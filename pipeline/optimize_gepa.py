@@ -39,6 +39,7 @@ def run_optimization(
     auto: str = "light",
     config_path: str = "config/dspy_config.yaml",
     num_threads: int = 4,
+    max_iterations: int | None = 3,
 ) -> float:
     """Run GEPA optimization and return test-set accuracy (0–100).
 
@@ -74,6 +75,7 @@ def run_optimization(
             "optimizer": "GEPA",
             "reflection_lm": "claude-sonnet-4-6",
             "gepa_auto": auto,
+            "gepa_max_iterations": max_iterations,
             "num_train": len(trainset),
             "num_val": len(valset),
             "num_dev": len(devset),
@@ -103,6 +105,7 @@ def run_optimization(
         optimizer = dspy.GEPA(
             metric=gepa_metric,
             auto=auto,
+            max_full_evals=max_iterations,
             reflection_lm=reflection_lm,
             num_threads=num_threads,
         )
@@ -138,6 +141,7 @@ def run_optimization(
             "optimizer": "GEPA",
             "reflection_lm": "claude-sonnet-4-6",
             "gepa_auto": auto,
+            "gepa_max_iterations": max_iterations,
             "num_train": len(trainset),
             "num_val": len(valset),
             "num_dev": len(devset),
@@ -156,6 +160,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--auto", choices=["light", "medium", "heavy"], default="light")
     p.add_argument("--config-path", default="config/dspy_config.yaml")
     p.add_argument("--num-threads", type=int, default=4)
+    p.add_argument("--max-iterations", type=int, default=3,
+                   help="Max GEPA full-eval iterations (None = use auto budget only).")
     return p.parse_args()
 
 
@@ -165,4 +171,5 @@ if __name__ == "__main__":
         auto=args.auto,
         config_path=args.config_path,
         num_threads=args.num_threads,
+        max_iterations=args.max_iterations,
     )
