@@ -31,15 +31,15 @@ from pathlib import Path
 
 import dspy
 import mlflow
-from dspy.clients.lm_local import LocalProvider
 
 from cluster_validator import (
     ClusterIntruderValidator,
     build_devset,
     configure_dspy,
+    configure_student_lm,
     configure_teacher_lm,
+    get_finetuned_output_dir,
     intruder_exact_match,
-    load_config,
     split_for_finetune,
     split_test,
 )
@@ -49,7 +49,7 @@ EXPERIMENT_NAME = "cluster-validator-finetune"
 
 
 def run_optimization(
-    output_dir: str = "./finetuned_model",
+    output_dir: str | None = None,
     config_path: str = "config/dspy_config.yaml",
     epochs: int = 1,
     lr: float = 5e-5,
@@ -79,15 +79,10 @@ def run_optimization(
     """
     dspy.settings.experimental = True
 
-    # Read student model name from config before configuring the global LM
-    cfg = load_config(config_path)
-    student_cfg = cfg.get("student") or cfg["model"]
-    student_model_name = student_cfg["name"]
-    student_hf_name = student_cfg.get("hf_name", student_model_name)
-
     # Global LM → student (ministral via SGLang), teacher LM returned separately
     configure_dspy(config_path, cache=True)
     teacher_lm = configure_teacher_lm(config_path, cache=True)
+    output_dir = output_dir or get_finetuned_output_dir(config_path)
 
     mlflow.set_experiment(EXPERIMENT_NAME)
     mlflow.dspy.autolog(log_traces=True, log_compiles=True)
@@ -106,20 +101,10 @@ def run_optimization(
         "use_peft": use_peft,
     }
 
-    # Student program uses Ministral-4b-instruct via SGLang LocalProvider (weight update target)
-    student_lm = dspy.LM(
-        model=f"openai/local:{student_model_name}",
-        finetuning_model=student_hf_name,
-        provider=LocalProvider(),
-        max_tokens=1000,
-        temperature=0.0,
-        cache=True,
-    )
+    student_lm = configure_student_lm(config_path, cache=True)
     student_program = ClusterIntruderValidator()
     student_program.predictor.set_lm(student_lm)
 
-    print(f"[finetune] Teacher LM : claude-sonnet-4-6 (Anthropic API)")
-    print(f"[finetune] Student LM : {student_model_name} (SGLang LocalProvider)")
     print(f"[finetune] Output dir : {output_dir}")
 
     all_examples = build_devset()
@@ -138,7 +123,7 @@ def run_optimization(
         mlflow.log_params({
             "optimizer": "BootstrapFinetune",
             "teacher_model": "claude-sonnet-4-6",
-            "student_model": student_model_name,
+            "student_model": student_lm.model,
             "output_dir": output_dir,
             "epochs": epochs,
             "lr": lr,
@@ -213,7 +198,7 @@ def run_optimization(
             results_path = Path(__file__).parent.parent / "outputs" / "optimize_finetune_results.json"
             results_path.write_text(json.dumps({
                 "teacher_model": "claude-sonnet-4-6",
-                "student_model": student_model_name,
+                "student_model": student_lm.model,
                 "output_dir": output_dir,
                 "num_train": len(trainset),
                 "num_dev": len(devset),
