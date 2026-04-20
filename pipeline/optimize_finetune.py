@@ -83,6 +83,7 @@ def run_optimization(
     cfg = load_config(config_path)
     student_cfg = cfg.get("student") or cfg["model"]
     student_model_name = student_cfg["name"]
+    student_hf_name = student_cfg.get("hf_name", student_model_name)
 
     # Global LM → student (ministral via SGLang), teacher LM returned separately
     configure_dspy(config_path, cache=True)
@@ -108,6 +109,7 @@ def run_optimization(
     # Student program uses Ministral-4b-instruct via SGLang LocalProvider (weight update target)
     student_lm = dspy.LM(
         model=f"openai/local:{student_model_name}",
+        finetuning_model=student_hf_name,
         provider=LocalProvider(),
         max_tokens=1000,
         temperature=0.0,

@@ -2,6 +2,7 @@
 student:
   provider: lm_studio          # lm_studio = OpenAI-compatible; tells litellm that json_schema is supported
   name: Ministral-4b-instruct
+  hf_name: ministral/Ministral-4b-instruct  # full HuggingFace repo ID, used for fine-tuning weight loading
   base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
   api_key: EMPTY                        # SGLang does not require a real key
   temperature: 0.4
