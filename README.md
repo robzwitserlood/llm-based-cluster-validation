@@ -124,14 +124,18 @@ Saves the compiled program to `outputs/program_gepa.json`.
 Uses Claude Sonnet as teacher to generate training traces, then fine-tunes `ministral-3:4b`.
 Requires `ANTHROPIC_API_KEY` to be set.
 
-```bash
-python pipeline/optimize_finetune.py
+**Stop the SGLang server before running** — HuggingFace TRL trains directly on the GPU and needs the full VRAM. The script manages its own inference server instances for pre- and post-finetune evaluation.
 
-# Optional flags
+```bash
+# Stop SGLang first (frees ~19 GiB on an L4/24 GB GPU)
+kill $(pgrep -f sglang)
+
+# Memory-efficient settings (required on ≤ 24 GiB GPUs)
 python pipeline/optimize_finetune.py \
-    --output-dir ./finetuned_model \
-    --epochs 2 \
-    --use-peft
+    --use-peft \
+    --bf16 \
+    --batch-size 1 \
+    --grad-accum 16
 ```
 
 Saves fine-tuned weights to `./finetuned_model/` and the compiled DSPy program to `outputs/program_finetune.json`.

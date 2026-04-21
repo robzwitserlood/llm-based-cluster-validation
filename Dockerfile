@@ -49,9 +49,12 @@ print('  python pipeline/build_dataset.py'); \
 print('  python pipeline/evaluate.py'); \
 print('  python pipeline/optimize.py'); \
 print('  python pipeline/optimize_gepa.py'); \
-print('  python pipeline/optimize_finetune.py'); \
+print('  python pipeline/optimize_finetune.py --use-peft --bf16 --batch-size 1 --grad-accum 16'); \
 print('  python pipeline/deploy_mlflow.py'); \
 print(); \
 print('Run with GPU support:'); \
 print('  docker run --gpus all -e ANTHROPIC_API_KEY=<key> <image> python pipeline/<script>.py'); \
+print(); \
+print('Note: do not start SGLang before optimize_finetune.py — it manages its own'); \
+print('inference server instances and needs the full GPU VRAM for HF TRL training.'); \
 "]
