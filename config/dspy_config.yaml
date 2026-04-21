@@ -1,5 +1,20 @@
-# Student model — Ministral-4b-instruct served locally via SGLang (fine-tuned target)
+# Student model — used by evaluate.py, optimize.py, optimize_gepa.py, and the notebook.
+# Point this at whatever local inference server you are running (lmstudio, SGLang, Ollama …).
+# Does NOT need use_local_provider — a plain OpenAI-compatible endpoint is sufficient.
 student:
+  provider: openai              # LiteLLM prefix for any OpenAI-compatible endpoint
+  name: Ministral-4b-instruct
+  base_url: http://localhost:1234/v1    # lmstudio default; change to :30000 for bare SGLang
+  api_key: lm-studio                   # lmstudio accepts any non-empty key
+  temperature: 0.4
+  max_tokens: 2000
+  repetition_penalty: 1.2
+
+# Fine-tune student — used ONLY by pipeline/optimize_finetune.py.
+# Must use SGLang via DSPy LocalProvider so that launch/kill/finetune are available.
+# Keep this block pointing at the local HuggingFace snapshot regardless of what
+# the 'student' block above is set to.
+finetune_student:
   provider: openai/local        # LiteLLM prefix for local OpenAI-compatible endpoint
   name: Ministral-4b-instruct   # display name only
   hf_name: /root/.cache/huggingface/hub/models--ministral--Ministral-4b-instruct/snapshots/f67f8fe8a161de571537aa9e23edb1c50d72e7ef

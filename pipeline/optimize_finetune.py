@@ -35,8 +35,7 @@ import mlflow
 from cluster_validator import (
     ClusterIntruderValidator,
     build_devset,
-    configure_dspy,
-    configure_student_lm,
+    configure_finetune_student_lm,
     configure_teacher_lm,
     get_finetuned_output_dir,
     intruder_exact_match,
@@ -79,17 +78,23 @@ def run_optimization(
     """
     dspy.settings.experimental = True
 
-    # Global LM → student (ministral via SGLang), teacher LM returned separately
-    configure_dspy(config_path, cache=True)
+    # configure_dspy() is intentionally NOT called here — it would mutate the global
+    # DSPy LM and bleed into evaluate/optimize scripts when run from a notebook.
+    # Both student and teacher are attached per-module via set_lm() instead.
     teacher_lm = configure_teacher_lm(config_path, cache=True)
+    # cache=False: the student weights change after compile, so cached responses
+    # from the pre-finetune server must not be replayed against the finetuned one.
+    student_lm = configure_finetune_student_lm(config_path, cache=False)
     output_dir = output_dir or get_finetuned_output_dir(config_path)
 
     mlflow.set_experiment(EXPERIMENT_NAME)
     mlflow.dspy.autolog(log_traces=True, log_compiles=True)
 
-    # Teacher program uses Claude Sonnet to generate high-quality training traces
     teacher_program = ClusterIntruderValidator()
     teacher_program.predictor.set_lm(teacher_lm)
+
+    student_program = ClusterIntruderValidator()
+    student_program.predictor.set_lm(student_lm)
 
     train_kwargs = {
         "num_train_epochs": epochs,
@@ -100,10 +105,6 @@ def run_optimization(
         "bf16": bf16,
         "use_peft": use_peft,
     }
-
-    student_lm = configure_student_lm(config_path, cache=True)
-    student_program = ClusterIntruderValidator()
-    student_program.predictor.set_lm(student_lm)
 
     print(f"[finetune] Output dir : {output_dir}")
 
@@ -117,6 +118,21 @@ def run_optimization(
     trainable, testset = split_test(all_examples)
     trainset, devset = split_for_finetune(trainable)
     print(f"Split: {len(trainset)} train / {len(devset)} dev / {len(testset)} test")
+
+    evaluate_dev = dspy.Evaluate(
+        devset=devset,
+        metric=intruder_exact_match,
+        num_threads=num_threads,
+        display_progress=True,
+        display_table=5,
+    )
+    evaluate_test = dspy.Evaluate(
+        devset=testset,
+        metric=intruder_exact_match,
+        num_threads=num_threads,
+        display_progress=True,
+        display_table=0,
+    )
 
     student_post_test = 0.0
     with mlflow.start_run(run_name="bootstrap-finetune"):
@@ -134,45 +150,42 @@ def run_optimization(
             "num_test": len(testset),
         })
 
-        evaluate_dev = dspy.Evaluate(
-            devset=devset,
-            metric=intruder_exact_match,
-            num_threads=num_threads,
-            display_progress=True,
-            display_table=5,
-        )
-        evaluate_test = dspy.Evaluate(
-            devset=testset,
-            metric=intruder_exact_match,
-            num_threads=num_threads,
-            display_progress=True,
-            display_table=0,
-        )
-
         baseline_dev = evaluate_dev(teacher_program).score
         print(f"\nBaseline dev accuracy (teacher) : {baseline_dev:.1f}%")
         mlflow.log_metric("teacher_baseline_dev_pct", baseline_dev)
 
-        print("\nLaunching student inference server (SGLang) …")
+        # Phase 1: evaluate the student with original weights.
+        # Launch a dedicated server for this — it will be killed before compile so
+        # that compile can restart SGLang with the finetuned weights.
+        print("\nLaunching student inference server for pre-finetune evaluation (SGLang) …")
         student_lm.launch()
-
         try:
             student_pre_dev = evaluate_dev(student_program).score
             print(f"Student pre-finetune dev        : {student_pre_dev:.1f}%")
             mlflow.log_metric("student_pre_finetune_dev_pct", student_pre_dev)
+        finally:
+            print("Shutting down pre-finetune inference server …")
+            student_lm.kill()
 
-            optimizer = dspy.BootstrapFinetune(
-                metric=intruder_exact_match,
-                train_kwargs=train_kwargs,
-                num_threads=num_threads,
-            )
-            print("\nRunning BootstrapFinetune …")
-            compiled = optimizer.compile(
-                student=student_program,
-                trainset=trainset,
-                teacher=teacher_program,
-            )
+        # Phase 2: compile (teacher generates traces, HF trains student weights).
+        # No SGLang server is needed during this phase.
+        optimizer = dspy.BootstrapFinetune(
+            metric=intruder_exact_match,
+            train_kwargs=train_kwargs,
+            num_threads=num_threads,
+        )
+        print("\nRunning BootstrapFinetune …")
+        compiled = optimizer.compile(
+            student=student_program,
+            trainset=trainset,
+            teacher=teacher_program,
+        )
 
+        # Phase 3: evaluate the finetuned program.
+        # compiled.get_lm() points to the new weights — launch its own server.
+        print("\nLaunching finetuned inference server (SGLang) …")
+        compiled.get_lm().launch()
+        try:
             student_post_dev = evaluate_dev(compiled).score
             student_post_test = evaluate_test(compiled).score
             print(f"\nStudent post-finetune dev  : {student_post_dev:.1f}%  (delta vs pre: {student_post_dev - student_pre_dev:+.1f}%)")
@@ -183,38 +196,37 @@ def run_optimization(
                 "delta_vs_pre_dev_pct": student_post_dev - student_pre_dev,
                 "delta_vs_teacher_dev_pct": student_post_dev - baseline_dev,
             })
-
-            mlflow.dspy.log_model(
-                compiled,
-                artifact_path="dspy_program",
-                task="llm/v1/chat",
-                pip_requirements=["dspy", "sglang[all]>=0.4.4.post3", "transformers", "accelerate", "peft"],
-            )
-            mlflow.log_artifact(output_dir, artifact_path="finetuned_weights")
-            compiled.save(str(OPTIMIZED_PATH))
-            mlflow.log_artifact(str(OPTIMIZED_PATH))
-            print(f"\nCompiled program saved to {OPTIMIZED_PATH}")
-
-            results_path = Path(__file__).parent.parent / "outputs" / "optimize_finetune_results.json"
-            results_path.write_text(json.dumps({
-                "teacher_model": "claude-sonnet-4-6",
-                "student_model": student_lm.model,
-                "output_dir": output_dir,
-                "num_train": len(trainset),
-                "num_dev": len(devset),
-                "num_test": len(testset),
-                "teacher_baseline_dev_pct": baseline_dev,
-                "student_pre_finetune_dev_pct": student_pre_dev,
-                "student_post_finetune_dev_pct": student_post_dev,
-                "student_post_finetune_test_pct": student_post_test,
-                "delta_vs_pre_dev_pct": student_post_dev - student_pre_dev,
-                "delta_vs_teacher_dev_pct": student_post_dev - baseline_dev,
-            }, indent=2))
-            print(f"Summary saved to {results_path}")
-
         finally:
-            print("\nShutting down student inference server …")
-            student_lm.kill()
+            print("\nShutting down finetuned inference server …")
+            compiled.get_lm().kill()
+
+        mlflow.dspy.log_model(
+            compiled,
+            artifact_path="dspy_program",
+            task="llm/v1/chat",
+            pip_requirements=["dspy", "sglang[all]>=0.4.4.post3", "transformers", "accelerate", "peft"],
+        )
+        mlflow.log_artifact(output_dir, artifact_path="finetuned_weights")
+        compiled.save(str(OPTIMIZED_PATH))
+        mlflow.log_artifact(str(OPTIMIZED_PATH))
+        print(f"\nCompiled program saved to {OPTIMIZED_PATH}")
+
+        results_path = Path(__file__).parent.parent / "outputs" / "optimize_finetune_results.json"
+        results_path.write_text(json.dumps({
+            "teacher_model": "claude-sonnet-4-6",
+            "student_model": student_lm.model,
+            "output_dir": output_dir,
+            "num_train": len(trainset),
+            "num_dev": len(devset),
+            "num_test": len(testset),
+            "teacher_baseline_dev_pct": baseline_dev,
+            "student_pre_finetune_dev_pct": student_pre_dev,
+            "student_post_finetune_dev_pct": student_post_dev,
+            "student_post_finetune_test_pct": student_post_test,
+            "delta_vs_pre_dev_pct": student_post_dev - student_pre_dev,
+            "delta_vs_teacher_dev_pct": student_post_dev - baseline_dev,
+        }, indent=2))
+        print(f"Summary saved to {results_path}")
 
     return student_post_test
 

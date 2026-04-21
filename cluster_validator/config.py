@@ -111,6 +111,32 @@ def get_finetuned_output_dir(config_path: Path | str = DEFAULT_CONFIG_PATH) -> s
     return config.get("finetuned", {}).get("output_dir", "./finetuned_model")
 
 
+def configure_finetune_student_lm(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> dspy.LM:
+    """Return a dspy.LM for the finetune_student block in dspy_config.yaml.
+
+    This block must use SGLang with use_local_provider=true so that
+    launch() / kill() / finetuning are available. It is intentionally
+    separate from the 'student' block so that evaluate/optimize scripts
+    can point 'student' at any OpenAI-compatible server (lmstudio, etc.)
+    without affecting the finetune workflow.
+
+    Does NOT set the global DSPy LM.
+    """
+    config = load_config(config_path)
+    if "finetune_student" not in config:
+        raise KeyError(
+            "No 'finetune_student' block found in dspy_config.yaml. "
+            "Add a 'finetune_student:' section with use_local_provider: true "
+            "and hf_name pointing to the local model snapshot."
+        )
+    ft_cfg = config["finetune_student"]
+    lm = _build_lm(ft_cfg, cache=cache)
+
+    model_label = ft_cfg.get("name", ft_cfg.get("hf_name", "unknown"))
+    print(f"[dspy] Finetune student LM: {model_label} (cache={cache}, local_provider={ft_cfg.get('use_local_provider', False)})")
+    return lm
+
+
 def configure_teacher_lm(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> dspy.LM:
     """Return a dspy.LM for the teacher model defined in dspy_config.yaml.
 
