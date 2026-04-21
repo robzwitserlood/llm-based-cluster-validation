@@ -10,7 +10,14 @@ from pathlib import Path
 
 import yaml
 import dspy
+import trl
 from dspy.clients.lm_local import LocalProvider
+
+# trl>=0.30 removed `setup_chat_format`, but DSPy 3.1's train_sft_locally still
+# imports it. The call site wraps it in `try/except Exception: pass`, so a no-op
+# shim is sufficient to let the import succeed.
+if not hasattr(trl, "setup_chat_format"):
+    trl.setup_chat_format = lambda model=None, tokenizer=None, **_: (model, tokenizer)
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "dspy_config.yaml"
 
