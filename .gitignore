@@ -15,6 +15,7 @@ wheels/
 # Generated dataset artefacts
 data/
 outputs/
+finetuned_model
 
 # Disk cache (build_dataset.py Dutch docs cache)
 .cache/

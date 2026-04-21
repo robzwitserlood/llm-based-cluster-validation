@@ -2,6 +2,7 @@
 cluster_validator/config.py — DSPy LM configuration from dspy_config.yaml.
 """
 
+import inspect
 import os
 import time
 import urllib.request
@@ -18,6 +19,21 @@ from dspy.clients.lm_local import LocalProvider
 # shim is sufficient to let the import succeed.
 if not hasattr(trl, "setup_chat_format"):
     trl.setup_chat_format = lambda model=None, tokenizer=None, **_: (model, tokenizer)
+
+# trl>=0.29 renamed SFTConfig's `max_seq_length` kwarg to `max_length`, but
+# DSPy 3.1 still passes `max_seq_length=...`. Translate at the SFTConfig boundary;
+# we can't strip the key earlier because lm_local's tokenizer step reads it too.
+_sft_params = inspect.signature(trl.SFTConfig.__init__).parameters
+if "max_seq_length" not in _sft_params and "max_length" in _sft_params:
+    _OrigSFTConfig = trl.SFTConfig
+
+    class _PatchedSFTConfig(_OrigSFTConfig):
+        def __init__(self, *args, max_seq_length=None, **kwargs):
+            if max_seq_length is not None and "max_length" not in kwargs:
+                kwargs["max_length"] = max_seq_length
+            super().__init__(*args, **kwargs)
+
+    trl.SFTConfig = _PatchedSFTConfig
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "dspy_config.yaml"
 
