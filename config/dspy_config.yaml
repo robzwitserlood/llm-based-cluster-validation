@@ -2,10 +2,10 @@
 # Point this at whatever local inference server you are running (lmstudio, SGLang, Ollama …).
 # Does NOT need use_local_provider — a plain OpenAI-compatible endpoint is sufficient.
 student:
-  provider: openai              # LiteLLM prefix for any OpenAI-compatible endpoint
+  provider: lm_studio          # lm_studio = OpenAI-compatible; tells litellm that json_schema is supported
   name: Ministral-4b-instruct
-  base_url: http://localhost:1234/v1    # lmstudio default; change to :30000 for bare SGLang
-  api_key: lm-studio                   # lmstudio accepts any non-empty key
+  base_url: http://localhost:30000/v1   # SGLang OpenAI-compatible endpoint
+  api_key: EMPTY                   # lmstudio accepts any non-empty key
   temperature: 0.4
   max_tokens: 2000
   repetition_penalty: 1.2
