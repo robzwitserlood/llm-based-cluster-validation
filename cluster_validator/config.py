@@ -61,7 +61,7 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
 
     if api_key:
         lm_kwargs["api_key"] = api_key
-    if base_url:
+    if base_url and not use_local_provider:
         lm_kwargs["base_url"] = base_url
 
     for key, val in model_cfg.items():
