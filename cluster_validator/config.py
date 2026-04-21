@@ -10,8 +10,32 @@ from pathlib import Path
 
 import yaml
 import dspy
+from dspy.clients.lm_local import LocalProvider
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config" / "dspy_config.yaml"
+
+
+class PatchedLocalProvider(LocalProvider):
+    """LocalProvider that avoids the `local:` prefix in the returned model name.
+
+    Upstream LocalProvider.finetune() returns `openai/local:<output_dir>` after training.
+    The `local:` prefix survives into the fine-tuned LM's model field and is sent
+    verbatim to SGLang, which (>=0.4) interprets the colon as `base-model:adapter-name`
+    and raises "LoRA adapter '<output_dir>' was requested, but LoRA is not enabled".
+    """
+
+    @staticmethod
+    def finetune(job, model, train_data, train_data_format, train_kwargs=None) -> str:
+        result = LocalProvider.finetune(
+            job=job,
+            model=model,
+            train_data=train_data,
+            train_data_format=train_data_format,
+            train_kwargs=train_kwargs,
+        )
+        if result.startswith("openai/local:"):
+            result = "openai/" + result[len("openai/local:"):]
+        return result
 
 
 def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> dict:
@@ -70,13 +94,16 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     if use_local_provider:
         # Use hf_name as the model path so LocalProvider.launch() passes the local
         # snapshot path to SGLang rather than downloading from HuggingFace.
-        from dspy.clients.lm_local import LocalProvider
+        # NOTE: we deliberately do NOT use DSPy's default "openai/local:<path>" form.
+        # SGLang >=0.4 parses a colon in the OpenAI `model` field as
+        # `base-model:adapter-name` for multi-LoRA serving, which turns the HF snapshot
+        # path into a bogus LoRA adapter request and fails with "LoRA is not enabled".
         model_path = hf_name or model_name
-        full_model_name = f"openai/local:{model_path}"
+        full_model_name = f"openai/{model_path}"
         lm_kwargs = dict(
             model=full_model_name,
             finetuning_model=hf_name or model_name,
-            provider=LocalProvider(),
+            provider=PatchedLocalProvider(),
             temperature=temperature,
             max_tokens=max_tokens,
             cache=cache,

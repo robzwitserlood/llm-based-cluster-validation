@@ -15,7 +15,7 @@ student:
 # Keep this block pointing at the local HuggingFace snapshot regardless of what
 # the 'student' block above is set to.
 finetune_student:
-  provider: openai/local        # LiteLLM prefix for local OpenAI-compatible endpoint
+  provider: openai              # LiteLLM prefix; use_local_provider below attaches SGLang
   name: Ministral-4b-instruct   # display name only
   hf_name: /root/.cache/huggingface/hub/models--ministral--Ministral-4b-instruct/snapshots/f67f8fe8a161de571537aa9e23edb1c50d72e7ef
   use_local_provider: true      # attach DSPy LocalProvider for SGLang launch/kill/finetune
