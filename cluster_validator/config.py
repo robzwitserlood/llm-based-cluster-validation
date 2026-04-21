@@ -68,12 +68,11 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     api_key = os.getenv(api_key_env) if api_key_env else model_cfg.get("api_key")
 
     if use_local_provider:
+        # Use hf_name as the model path so LocalProvider.launch() passes the local
+        # snapshot path to SGLang rather than downloading from HuggingFace.
         from dspy.clients.lm_local import LocalProvider
-        # model_name is the API identifier sent in every request ("Ministral-4b-instruct").
-        # hf_name is the local snapshot path used only by LocalProvider.launch() and finetune.
-        # Keeping them separate prevents SGLang from misinterpreting the snapshot path
-        # as a LoRA adapter when it appears in the model field of an API request.
-        full_model_name = f"openai/local:{model_name}"
+        model_path = hf_name or model_name
+        full_model_name = f"openai/local:{model_path}"
         lm_kwargs = dict(
             model=full_model_name,
             finetuning_model=hf_name or model_name,
