@@ -3,6 +3,9 @@ cluster_validator/config.py — DSPy LM configuration from dspy_config.yaml.
 """
 
 import os
+import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 import yaml
@@ -22,6 +25,34 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> dict:
 _KNOWN_KEYS = {"provider", "name", "hf_name", "use_local_provider", "temperature",
                "max_tokens", "base_url", "api_key", "api_key_env"}
 
+# Threads to use when the LM is a local server (single GPU — no point saturating it)
+LOCAL_NUM_THREADS = 2
+# Threads for remote/cloud LMs
+REMOTE_NUM_THREADS = 8
+
+
+def wait_for_server(base_url: str, timeout: int = 120, interval: float = 3.0) -> None:
+    """Poll base_url/health until the server responds 200 or timeout expires.
+
+    Raises RuntimeError if the server is not reachable within timeout seconds.
+    """
+    health_url = base_url.rstrip("/").removesuffix("/v1") + "/health"
+    deadline = time.monotonic() + timeout
+    last_exc: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(health_url, timeout=3) as resp:
+                if resp.status == 200:
+                    print(f"[dspy] Server ready at {health_url}")
+                    return
+        except Exception as exc:
+            last_exc = exc
+        time.sleep(interval)
+    raise RuntimeError(
+        f"Server at {health_url} did not become ready within {timeout}s. "
+        f"Last error: {last_exc}"
+    )
+
 
 def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     """Construct a dspy.LM from a config block dict."""
@@ -37,11 +68,12 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     api_key = os.getenv(api_key_env) if api_key_env else model_cfg.get("api_key")
 
     if use_local_provider:
-        # Use hf_name as the model path so LocalProvider.launch() passes the local
-        # snapshot path to SGLang rather than downloading from HuggingFace.
         from dspy.clients.lm_local import LocalProvider
-        model_path = hf_name or model_name
-        full_model_name = f"openai/local:{model_path}"
+        # model_name is the API identifier sent in every request ("Ministral-4b-instruct").
+        # hf_name is the local snapshot path used only by LocalProvider.launch() and finetune.
+        # Keeping them separate prevents SGLang from misinterpreting the snapshot path
+        # as a LoRA adapter when it appears in the model field of an API request.
+        full_model_name = f"openai/local:{model_name}"
         lm_kwargs = dict(
             model=full_model_name,
             finetuning_model=hf_name or model_name,
@@ -49,6 +81,7 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
             temperature=temperature,
             max_tokens=max_tokens,
             cache=cache,
+            num_retries=3,
         )
     else:
         full_model_name = f"{provider_str}/{model_name}"
@@ -57,6 +90,7 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
             temperature=temperature,
             max_tokens=max_tokens,
             cache=cache,
+            num_retries=3,
         )
 
     if api_key:
@@ -71,24 +105,41 @@ def _build_lm(model_cfg: dict, cache: bool = False) -> dspy.LM:
     return dspy.LM(**lm_kwargs)
 
 
-def configure_dspy(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> None:
+def configure_dspy(
+    config_path: Path | str = DEFAULT_CONFIG_PATH,
+    cache: bool = False,
+    wait_for_server_ready: bool = True,
+    server_timeout: int = 120,
+) -> int:
     """Configure the global DSPy LM from the student block in dspy_config.yaml.
 
     Falls back to the legacy ``model`` key for backwards compatibility.
 
     Args:
-        config_path: Path to the YAML configuration file.
-        cache:       Enable DSPy response caching (useful for eval/optimize runs).
+        config_path:          Path to the YAML configuration file.
+        cache:                Enable DSPy response caching (useful for eval/optimize runs).
+        wait_for_server_ready: Poll the server health endpoint until ready (local servers only).
+        server_timeout:       Seconds to wait for the server before raising.
+
+    Returns:
+        Recommended num_threads for dspy.Evaluate — lower for local servers.
     """
     config = load_config(config_path)
     # Support both new "student" key and legacy "model" key
     model_cfg = config.get("student") or config["model"]
 
+    is_local = bool(model_cfg.get("base_url") or model_cfg.get("use_local_provider"))
+    if wait_for_server_ready and is_local:
+        base_url = model_cfg.get("base_url", "http://localhost:30000/v1")
+        wait_for_server(base_url, timeout=server_timeout)
+
     lm = _build_lm(model_cfg, cache=cache)
     dspy.configure(lm=lm, adapter=dspy.ChatAdapter())
 
     full_model_name = f"{model_cfg.get('provider', 'openai')}/{model_cfg['name']}"
-    print(f"[dspy] Configured LM: {full_model_name} (cache={cache})")
+    num_threads = LOCAL_NUM_THREADS if is_local else REMOTE_NUM_THREADS
+    print(f"[dspy] Configured LM: {full_model_name} (cache={cache}, num_threads={num_threads})")
+    return num_threads
 
 
 def configure_student_lm(config_path: Path | str = DEFAULT_CONFIG_PATH, cache: bool = False) -> dspy.LM:

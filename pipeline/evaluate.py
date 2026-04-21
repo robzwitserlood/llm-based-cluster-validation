@@ -25,12 +25,18 @@ RESULTS_PATH = Path(__file__).parent.parent / "outputs" / "eval_results.json"
 EXPERIMENT_NAME = "cluster-validator-eval"
 
 
-def run_evaluation(config_path: str = "config/dspy_config.yaml", num_threads: int = 4) -> float:
+def run_evaluation(config_path: str = "config/dspy_config.yaml", num_threads: int | None = None) -> float:
     """Evaluate ClusterIntruderValidator and return accuracy (0–100).
 
     Logs traces, metrics, and results to MLflow automatically.
+
+    Args:
+        num_threads: Parallelism for dspy.Evaluate. Defaults to the value recommended
+                     by configure_dspy() (lower for local servers, higher for remote).
     """
-    configure_dspy(config_path, cache=True)
+    recommended_threads = configure_dspy(config_path, cache=True)
+    if num_threads is None:
+        num_threads = recommended_threads
     mlflow.set_experiment(EXPERIMENT_NAME)
     mlflow.dspy.autolog(log_traces=True, log_traces_from_eval=True)
 
