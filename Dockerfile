@@ -35,7 +35,9 @@ RUN uv sync
 # Copy the rest of the project
 COPY config/ ./config/
 COPY pipeline/ ./pipeline/
+COPY scripts/ ./scripts/
 COPY data/ ./data/
+COPY Snakefile ./Snakefile
 COPY .env.example ./.env.example
 
 # SGLang inference server and MLflow model serve
@@ -44,17 +46,17 @@ EXPOSE 30000 5000
 ENV PYTHONPATH=/app
 
 CMD ["uv", "run", "python", "-c", "\
-print('LLM-based Cluster Validation — available pipeline scripts:'); \
-print('  python pipeline/build_dataset.py'); \
-print('  python pipeline/evaluate.py'); \
-print('  python pipeline/optimize.py'); \
-print('  python pipeline/optimize_gepa.py'); \
-print('  python pipeline/optimize_finetune.py --use-peft --bf16 --batch-size 1 --grad-accum 16'); \
-print('  python pipeline/deploy_mlflow.py'); \
+print('LLM-based Cluster Validation — Snakemake targets:'); \
+print('  uv run snakemake --dry-run all           # inspect the DAG'); \
+print('  uv run snakemake all -j1                 # full pipeline end-to-end'); \
+print('  uv run snakemake evaluate -j1            # baseline only'); \
+print('  uv run snakemake optimize -j1            # BootstrapFewShot'); \
+print('  uv run snakemake optimize_gepa -j1       # GEPA (needs ANTHROPIC_API_KEY)'); \
+print('  uv run snakemake optimize_finetune -j1   # BootstrapFinetune (needs ANTHROPIC_API_KEY)'); \
+print('  uv run snakemake deploy -j1              # log fine-tuned program to MLflow'); \
 print(); \
 print('Run with GPU support:'); \
-print('  docker run --gpus all -e ANTHROPIC_API_KEY=<key> <image> python pipeline/<script>.py'); \
+print('  docker run --gpus all -e ANTHROPIC_API_KEY=<key> <image> uv run snakemake <target> -j1'); \
 print(); \
-print('Note: do not start SGLang before optimize_finetune.py — it manages its own'); \
-print('inference server instances and needs the full GPU VRAM for HF TRL training.'); \
+print('SGLang is started/stopped automatically by the Snakefile rules — do not launch it manually.'); \
 "]

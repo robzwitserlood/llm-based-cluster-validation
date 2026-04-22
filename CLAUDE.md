@@ -11,8 +11,8 @@ This repository is an internal onboarding / knowledge-sharing resource that walk
 - **DSPy** is the primary framework — all LLM interaction, evaluation, and optimization goes through DSPy abstractions (`dspy.Module`, `dspy.Signature`, `dspy.Evaluate`, optimizers).
 - **Target model**: `Ministral-4b-instruct` served locally via **SGLang** (OpenAI-compatible API at `http://localhost:30000/v1`). The config uses `provider: openai` with `base_url` pointing to SGLang.
 - **Optimization order**: BootstrapFewShot → GEPA → BootstrapFinetune. The first two establish a performance baseline and produce labeled traces; fine-tuning (`pipeline/optimize_finetune.py`) is the primary objective.
-- **Dual-mode code**: every script must be runnable from the command line (`python pipeline/foo.py`) *and* importable/callable from a Jupyter notebook without modification. Expose clean functions that both the CLI entry-point and the notebook can call — do not put logic inside `if __name__ == "__main__"` guards.
-- **Notebook scope**: the demo notebook covers evaluation and optimization only (not dataset generation or deployment). It should explain what DSPy is doing under the hood at each step.
+- **Orchestration**: the pipeline runs via **Snakemake** (`Snakefile` at the repo root). Each rule calls the existing `run_*()` function in `pipeline/*.py` via a `run:` block; no shell-outs. Every `pipeline/*.py` must keep a clean `run_*()` entry point so rules can import it — do not bury logic inside `if __name__ == "__main__"` guards.
+- **SGLang lifecycle in rules**: rules that need inference (`evaluate`, `optimize`, `optimize_gepa`) call `scripts/sglang_manager.ensure_running()`; rules that need the full GPU (`optimize_finetune`, `deploy_mlflow`) call `scripts/sglang_manager.kill()`. Both helpers are idempotent.
 - **MLflow tracking**: call `mlflow.dspy.autolog()` at the start of any evaluation or optimization run. Key behaviors:
   - Automatically logs traces, metrics, and artifacts (training data, eval results)
   - `log_compiles=True` captures optimizer compile steps and intermediate program states
@@ -29,6 +29,7 @@ cluster_validator/      # Installable package — all reusable logic
 
 config/
   dspy_config.yaml      # LM settings (SGLang endpoint, model name, temperature)
+  pipeline_config.yaml  # Orchestration defaults read by the Snakefile
 
 data/                   # Input datasets (checked in or generated)
   topics.json           # BERTopic topic representations
@@ -40,6 +41,7 @@ outputs/                # Artifacts produced by pipeline runs (gitignored)
   program_finetune.json
   eval_results.json
   optimize_*.json
+  .deploy_marker        # Snakemake sentinel containing the MLflow run_id from deploy_mlflow
 
 pipeline/               # Executable scripts — thin wrappers over cluster_validator functions
   build_dataset.py      # Stream Dutch news → BERTopic → data/
@@ -48,52 +50,61 @@ pipeline/               # Executable scripts — thin wrappers over cluster_vali
   optimize_gepa.py      # GEPA + MLflow → outputs/
   optimize_finetune.py  # BootstrapFinetune (primary objective) + MLflow → outputs/
   deploy_mlflow.py      # Log fine-tuned program to MLflow; prints mlflow models serve command
+
+scripts/
+  sglang_manager.py     # ensure_running() / kill() — SGLang lifecycle used by Snakefile rules
+
+Snakefile               # DAG definition; imports run_*() from pipeline/*.py
 ```
 
 ## Commands
 
 ```bash
-# Install dependencies (includes cluster_validator as editable package)
+# Install dependencies (includes cluster_validator as editable package + snakemake)
 uv sync
 
-# Generate a real-world dataset from Dutch news
-python pipeline/build_dataset.py
-python pipeline/build_dataset.py --max-docs 10000 --examples-per-topic 4
-python pipeline/build_dataset.py --skip-bertopic   # re-generate from existing topics.json
+# Inspect the DAG without running anything
+uv run snakemake --dry-run all
 
-# Evaluate
-python pipeline/evaluate.py
+# Run the full pipeline end-to-end (build → evaluate, optimize, optimize_gepa → optimize_finetune → deploy)
+uv run snakemake all -j1
 
-# Optimize — in order of increasing cost
-python pipeline/optimize.py
-python pipeline/optimize_gepa.py --reflection-lm openai/gpt-4o-mini
-python pipeline/optimize_finetune.py --student-model meta-llama/Llama-3.2-1B-Instruct
+# Run a single stage (Snakemake will build any missing prerequisites first)
+uv run snakemake evaluate -j1
+uv run snakemake optimize -j1
+uv run snakemake optimize_gepa -j1
+uv run snakemake optimize_finetune -j1
+uv run snakemake deploy -j1
 
-# Deploy fine-tuned model to MLflow
-python pipeline/deploy_mlflow.py --output-dir ./finetuned_model
-# Then serve with:
-# mlflow models serve -m "runs:/<run_id>/dspy_program" -p 6000
+# Override config values per run (see config/pipeline_config.yaml for keys).
+# Put the target BEFORE --config, otherwise Snakemake parses it as a key=value pair.
+uv run snakemake optimize_gepa -j1 --config gepa_auto=heavy num_threads=8
+
+# Remove all generated artifacts
+uv run snakemake clean
 ```
+
+SGLang is started/stopped automatically by the rules via `scripts/sglang_manager.py` — do not launch it manually.
 
 ## Architecture
 
 The project validates text cluster quality via an **intruder detection** task: given 6 keywords (5 from one semantic cluster, 1 from a different cluster), an LLM must identify the intruder.
 
-### Pipeline
+### Pipeline (Snakemake DAG)
 
 ```
-pipeline/build_dataset.py
-  → pipeline/raw_examples.json
-    → pipeline/evaluate.py          (baseline score, MLflow run)
-      → pipeline/optimize.py        (BootstrapFewShot, MLflow run)
-      → pipeline/optimize_gepa.py   (GEPA, MLflow run)
-      → pipeline/optimize_finetune.py  (BootstrapFinetune — primary goal, MLflow run)
-        → pipeline/deploy_mlflow.py    (log to MLflow, print serve command)
+build_dataset → data/raw_examples.json ─┬── evaluate          → outputs/eval_results.json
+                                         ├── optimize         → outputs/program_optimized.json
+                                         ├── optimize_gepa    → outputs/program_gepa.json
+                                         └── optimize_finetune → finetuned_model/ + outputs/program_finetune.json
+                                                                    └── deploy_mlflow → outputs/.deploy_marker
 ```
+
+`evaluate`, `optimize`, `optimize_gepa` are independent; Snakemake serialises them on the single GPU via a `gpu=1` resource (one job at a time with `-j1`). `optimize_finetune` and `deploy_mlflow` both need SGLang shut down first (they manage their own server instances).
 
 ### Key design decisions
 
 - **`cluster_validator/config.py`** is the single source of truth for LM configuration. All pipeline scripts import `configure_dspy()` from here — no duplicate config-loading logic.
-- **Notebook-friendly functions**: every pipeline script exposes a plain-Python function (`run_evaluation()`, `run_optimization()`, etc.) with typed keyword arguments and sensible defaults. The `if __name__ == "__main__"` block only calls `parse_args()` and routes into that function.
+- **Importable functions**: every pipeline script exposes a plain-Python `run_*()` function with typed keyword arguments and sensible defaults. The Snakefile imports these directly; the `if __name__ == "__main__"` block only calls `parse_args()` and routes into the same function.
 - **`FinetunedClusterValidator`** (in `pipeline/deploy_mlflow.py`) wraps `ClusterIntruderValidator` to satisfy MLflow 2.22.0+'s requirement for a `dspy.Module` with `forward(self, messages)` using the `llm/v1/chat` schema. Input: comma-separated keyword string.
-- **SGLang lifecycle** in finetune/deploy: `student_lm.launch()` / `student_lm.kill()` are always wrapped in `try/finally`.
+- **SGLang lifecycle**: in `pipeline/optimize_finetune.py` and `pipeline/deploy_mlflow.py`, `student_lm.launch()` / `student_lm.kill()` are always wrapped in `try/finally`. From orchestration, `scripts/sglang_manager.py` provides the matching process-level `ensure_running()` / `kill()`.

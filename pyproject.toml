@@ -15,14 +15,13 @@ dependencies = [
     "peft>=0.18.1",
     "sentence-transformers>=5.3.0",
     "sglang[all]>=0.4.4.post3",
+    "snakemake>=8.0",
     "transformers>=4.57.1",
     "trl>=0.20",
 ]
 
 [dependency-groups]
-dev = [
-    "jupyter>=1.1.1",
-]
+dev = []
 
 [build-system]
 requires = ["hatchling"]

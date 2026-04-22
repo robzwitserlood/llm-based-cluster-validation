@@ -23,3 +23,6 @@ finetuned_model
 # MLFlow
 mlflow.db
 mlruns/
+
+# Snakemake
+.snakemake/
