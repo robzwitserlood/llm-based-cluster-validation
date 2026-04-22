@@ -97,20 +97,19 @@ def log_to_mlflow(output_dir: str = "./finetuned_model") -> str:
             if FINETUNE_RESULTS_PATH.exists():
                 results = json.loads(FINETUNE_RESULTS_PATH.read_text())
                 mlflow.log_metrics({
-                    "teacher_baseline_pct": results["teacher_baseline_pct"],
-                    "student_pre_finetune_pct": results["student_pre_finetune_pct"],
-                    "student_post_finetune_pct": results["student_post_finetune_pct"],
-                    "delta_vs_teacher_pct": results["delta_vs_teacher_pct"],
+                    "teacher_baseline_pct": results["teacher_baseline_dev_pct"],
+                    "student_pre_finetune_pct": results["student_pre_finetune_dev_pct"],
+                    "student_post_finetune_pct": results["student_post_finetune_dev_pct"],
+                    "delta_vs_teacher_pct": results["delta_vs_teacher_dev_pct"],
                 })
                 mlflow.log_params({
-                    "teacher_lm": results.get("teacher_lm", "see config/dspy_config.yaml"),
+                    "teacher_lm": results.get("teacher_model", "see config/dspy_config.yaml"),
                     "student_model": results.get("student_model", output_dir),
                     "num_train": results["num_train"],
                     "num_dev": results["num_dev"],
                 })
                 print(f"[deploy] Logged metrics from {FINETUNE_RESULTS_PATH}")
 
-            mlflow.log_artifact(output_dir, artifact_path="finetuned_weights")
             if FINETUNED_PROGRAM_PATH.exists():
                 mlflow.log_artifact(str(FINETUNED_PROGRAM_PATH))
 

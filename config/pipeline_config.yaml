@@ -24,7 +24,7 @@ gepa_max_iterations: 3
 # optimize_finetune
 finetune:
   output_dir: finetuned_model
-  epochs: 1
+  epochs: 10
   lr: 5.0e-5
   batch_size: 1
   grad_accum: 16

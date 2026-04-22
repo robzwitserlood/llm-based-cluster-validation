@@ -206,7 +206,6 @@ def run_optimization(
             task="llm/v1/chat",
             pip_requirements=["dspy", "sglang[all]>=0.4.4.post3", "transformers", "accelerate", "peft"],
         )
-        mlflow.log_artifact(output_dir, artifact_path="finetuned_weights")
         compiled.save(str(OPTIMIZED_PATH))
         mlflow.log_artifact(str(OPTIMIZED_PATH))
         print(f"\nCompiled program saved to {OPTIMIZED_PATH}")
