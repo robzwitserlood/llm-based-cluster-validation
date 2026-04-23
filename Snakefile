@@ -15,10 +15,17 @@
 # Inspect the DAG without running anything:
 #   snakemake --dry-run all
 #   snakemake --dag all | dot -Tpng > dag.png
+import os
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(workflow.basedir).resolve()
+
+# MLflow 3.x defaults to a SQLite backend (mlflow.db) whose initial schema
+# creation triggers a SQLAlchemy CircularDependencyError on fresh installs.
+# File-based tracking avoids SQLAlchemy entirely and is sufficient for all
+# pipeline stages (no model-registry features are used here).
+os.environ.setdefault("MLFLOW_TRACKING_URI", str(REPO_ROOT / "mlruns"))
 # Make `pipeline/*` and `scripts/*` importable from run: blocks.
 for p in (str(REPO_ROOT), str(REPO_ROOT / "scripts")):
     if p not in sys.path:
