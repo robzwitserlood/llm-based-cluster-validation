@@ -19,7 +19,10 @@ import os
 import sys
 from pathlib import Path
 
+import dotenv
+
 REPO_ROOT = Path(workflow.basedir).resolve()
+dotenv.load_dotenv(REPO_ROOT / ".env", override=False)
 
 # MLflow 3.x defaults to a SQLite backend (mlflow.db) whose initial schema
 # creation triggers a SQLAlchemy CircularDependencyError on fresh installs.
