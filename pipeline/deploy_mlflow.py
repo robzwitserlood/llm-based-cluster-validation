@@ -40,7 +40,7 @@ EXPERIMENT_NAME = "cluster-validator-finetuned"
 class FinetunedClusterValidator(dspy.Module):
     """Wraps ClusterIntruderValidator to fit MLflow's llm/v1/chat schema."""
 
-    def __init__(self, student_lm: dspy.LM, program_path: pathlib.Path = FINETUNED_PROGRAM_PATH) -> None:
+    def __init__(self, program_path: pathlib.Path = FINETUNED_PROGRAM_PATH) -> None:
         super().__init__()
         self.program = ClusterIntruderValidator()
         if program_path.exists():
@@ -48,7 +48,6 @@ class FinetunedClusterValidator(dspy.Module):
             print(f"[deploy] Loaded compiled program from {program_path}")
         else:
             print(f"[deploy] WARNING: {program_path} not found — using uncompiled program")
-        self.program.predictor.set_lm(student_lm)
 
     def forward(self, messages: list[dict]) -> dict:
         """
@@ -89,8 +88,21 @@ def log_to_mlflow(output_dir: str = "./finetuned_model") -> str:
     print("[deploy] Launching student inference server (SGLang) …")
     student_lm.launch()
 
+    # student_lm holds a live subprocess with thread locks — unpicklable.
+    # Build a regular dspy.LM from the launched server URL so mlflow can cloudpickle the settings.
+    api_base = student_lm.kwargs["api_base"]
+    serving_lm = dspy.LM(
+        model=f"openai/{output_dir}",
+        api_base=api_base,
+        api_key="None",
+        max_tokens=1000,
+        temperature=0.0,
+        cache=True,
+    )
+    dspy.configure(lm=serving_lm)
+
     try:
-        program = FinetunedClusterValidator(student_lm=student_lm)
+        program = FinetunedClusterValidator()
 
         mlflow.set_experiment(EXPERIMENT_NAME)
         with mlflow.start_run(run_name="ministral-4b-finetuned") as run:
